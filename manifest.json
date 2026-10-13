@@ -1,0 +1,16 @@
+{
+  "name": "Presupuesto mensual",
+  "short_name": "Presupuesto",
+  "description": "Presupuesto por categorías y registro diario de gastos con fecha de corte.",
+  "lang": "es-MX",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef2f6",
+  "theme_color": "#2563a8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
