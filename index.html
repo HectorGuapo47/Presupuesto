@@ -310,6 +310,10 @@
 
   var money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
   function fmt(n) { return money.format(Math.round(n)); }
+  function fmtX(n) {
+    var r = Math.round(n * 100) / 100;
+    return Number.isInteger(r) ? money.format(r) : money2.format(r);
+  }
   function parseNum(s) {
     var n = parseFloat(String(s).replace(/[^0-9.]/g, ''));
     return isNaN(n) ? 0 : n;
@@ -342,7 +346,7 @@
       var amtInp = $('i-amt-' + c.id);
       amtInp.addEventListener('input', function () {
         if (state.sueldo <= 0) return;
-        state.pct[c.id] = Math.round(parseNum(amtInp.value) / state.sueldo * 10000) / 100;
+        state.pct[c.id] = parseNum(amtInp.value) / state.sueldo * 100;
         sl.value = state.pct[c.id];
         save();
         updateIdeal();
@@ -401,7 +405,7 @@
       amtEl.disabled = state.sueldo <= 0;
       amtEl.placeholder = state.sueldo > 0 ? '0' : 'sueldo';
       if (document.activeElement !== amtEl) {
-        amtEl.value = state.sueldo > 0 ? fmtInput(Math.round(state.sueldo * p / 100)) : '';
+        amtEl.value = state.sueldo > 0 ? fmtInput(Math.round(state.sueldo * p) / 100) : '';
       }
       var rngEl = $('i-rng-' + c.id);
       var rngTxt = c.min + '\u2013' + c.max + '%';
@@ -678,17 +682,17 @@
         big = '—'; small = 'captura tu sueldo';
         line = (c.isSaving ? 'Apartado ' : 'Gastado ') + money2.format(spent);
       } else if (c.isSaving) {
-        big = left > 0 ? fmt(left) : 'Meta cumplida';
-        small = left > 0 ? 'por apartar de ' + fmt(budget) : 'presupuesto ' + fmt(budget);
+        big = left > 0 ? fmtX(left) : 'Meta cumplida';
+        small = left > 0 ? 'por apartar de ' + fmtX(budget) : 'presupuesto ' + fmtX(budget);
         line = 'Apartado ' + money2.format(spent);
       } else if (over) {
-        big = '-' + fmt(-left);
-        small = 'excedido (presupuesto ' + fmt(budget) + ')';
+        big = '-' + fmtX(-left);
+        small = 'excedido (presupuesto ' + fmtX(budget) + ')';
         bigColor = 'color:var(--warn)';
         line = 'Gastado ' + money2.format(spent);
       } else {
-        big = fmt(left);
-        small = 'te queda de ' + fmt(budget);
+        big = fmtX(left);
+        small = 'te queda de ' + fmtX(budget);
         line = 'Gastado ' + money2.format(spent);
         if (days > 0 && left > 0) line += ' · ≈ ' + fmt(left / days) + ' por día';
       }
@@ -702,14 +706,14 @@
     $('l-cats').innerHTML = html;
 
     var remaining = budgetSpend - spentSpend;
-    $('l-k-spent').textContent = fmt(spentSpend);
-    $('l-k-saved').textContent = fmt(savedTotal);
+    $('l-k-spent').textContent = fmtX(spentSpend);
+    $('l-k-saved').textContent = fmtX(savedTotal);
     if (sueldo <= 0) {
       $('l-k-left').textContent = '–';
       $('l-k-day').textContent = '–';
       $('l-k-left-box').className = 'kpi';
     } else {
-      $('l-k-left').textContent = (remaining < 0 ? '-' : '') + fmt(Math.abs(remaining));
+      $('l-k-left').textContent = (remaining < 0 ? '-' : '') + fmtX(Math.abs(remaining));
       $('l-k-left-box').className = remaining < 0 ? 'kpi warn' : 'kpi';
       if (days > 0) $('l-k-day').textContent = remaining > 0 ? fmt(remaining / days) : '$0';
       else $('l-k-day').textContent = '–';

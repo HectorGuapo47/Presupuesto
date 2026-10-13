@@ -1,6 +1,6 @@
 // Service worker: guarda la app en el teléfono para que abra sin internet.
 // Si actualizas index.html, sube el número de versión para forzar la recarga.
-var CACHE = 'presupuesto-v1';
+var CACHE = 'presupuesto-v2';
 var FILES = [
   './',
   './index.html',
