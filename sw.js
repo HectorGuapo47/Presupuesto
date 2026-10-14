@@ -1,6 +1,6 @@
-// Service worker: guarda la app en el teléfono para que abra sin internet.
-// Si actualizas index.html, sube el número de versión para forzar la recarga.
-var CACHE = 'presupuesto-v4';
+// Service worker: guarda la app para que abra sin internet.
+// Estrategia: primero internet (siempre la versión más nueva); si no hay conexión, usa lo guardado.
+var CACHE = 'presupuesto-v5';
 var FILES = [
   './',
   './index.html',
@@ -12,7 +12,14 @@ var FILES = [
 
 self.addEventListener('install', function (e) {
   e.waitUntil(
-    caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); })
+    caches.open(CACHE).then(function (cache) {
+      // cache: 'reload' evita que se guarde una copia vieja que tenga el navegador
+      return Promise.all(FILES.map(function (url) {
+        return fetch(url, { cache: 'reload' }).then(function (res) {
+          if (res && res.ok) return cache.put(url, res);
+        });
+      }));
+    }).then(function () { return self.skipWaiting(); })
   );
 });
 
@@ -24,17 +31,20 @@ self.addEventListener('activate', function (e) {
   );
 });
 
-// Responde desde el caché al instante y, si hay internet, actualiza el caché en segundo plano.
 self.addEventListener('fetch', function (e) {
-  if (e.request.method !== 'GET') return;
+  var req = e.request;
+  if (req.method !== 'GET') return;
+  if (new URL(req.url).origin !== self.location.origin) return;
+
   e.respondWith(
     caches.open(CACHE).then(function (cache) {
-      return cache.match(e.request, { ignoreSearch: true }).then(function (hit) {
-        var net = fetch(e.request).then(function (res) {
-          if (res && res.ok) cache.put(e.request, res.clone());
-          return res;
-        }).catch(function () { return hit || cache.match('./index.html'); });
-        return hit || net;
+      var net = fetch(req.url, { cache: 'reload' }).then(function (res) {
+        if (res && res.ok) cache.put(req, res.clone());
+        return res;
+      });
+      var timeout = new Promise(function (resolve, reject) { setTimeout(reject, 4000); });
+      return Promise.race([net, timeout]).catch(function () {
+        return cache.match(req).then(function (hit) { return hit || cache.match('./index.html'); });
       });
     })
   );
