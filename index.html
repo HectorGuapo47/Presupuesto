@@ -180,6 +180,8 @@
   .backup .btns { display: flex; gap: 10px; flex-wrap: wrap; }
   .backup .btn { margin-top: 0; width: auto; padding: 9px 14px; }
   #bk-msg { margin-top: 8px; }
+  #bk-text { width: 100%; margin-top: 10px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 16px;
+    background: var(--bg); color: var(--text); border: 2px solid var(--border); border-radius: 12px; padding: 8px 10px; }
   @media (prefers-reduced-motion: reduce) { .mark, .prog > i { transition: none; } }
 </style>
 </head>
@@ -263,9 +265,15 @@
     <h2>Respaldo de tus datos</h2>
     <p>Tus datos viven solo en este dispositivo. Exporta un respaldo para guardarlo o pasarlo a otro teléfono.</p>
     <div class="btns">
-      <button class="btn" id="bk-export" type="button">Exportar respaldo</button>
-      <button class="btn" id="bk-import" type="button">Importar respaldo</button>
-      <input id="bk-file" type="file" accept="application/json,.json" hidden>
+      <button class="btn" id="bk-export" type="button">Exportar archivo</button>
+      <button class="btn" id="bk-copy" type="button">Copiar como texto</button>
+      <button class="btn" id="bk-import" type="button">Importar archivo</button>
+      <button class="btn" id="bk-paste" type="button">Pegar texto</button>
+      <input id="bk-file" type="file" accept="application/json,.json,text/plain,.txt" hidden>
+    </div>
+    <div id="bk-box" hidden>
+      <textarea id="bk-text" rows="6" aria-label="Respaldo en texto" placeholder="Pega aquí tu respaldo"></textarea>
+      <button class="btn" id="bk-restore" type="button" hidden style="margin-top:8px">Restaurar desde el texto</button>
     </div>
     <div class="form-msg" id="bk-msg" role="status"></div>
   </div>
@@ -764,43 +772,104 @@
 
   /* ---------- Respaldo ---------- */
   function setBkMsg(cls, text) { $('bk-msg').className = 'form-msg ' + cls; $('bk-msg').textContent = text; }
+  function backupJson() {
+    return JSON.stringify({ app: 'presupuesto-soltero', version: 1, data: state }, null, 2);
+  }
+  function restoreFromText(txt) {
+    try {
+      var d = JSON.parse(txt).data;
+      if (!d || typeof d.sueldo !== 'number' || !Array.isArray(d.log)) throw new Error('formato');
+      if (!confirm('Esto reemplaza los datos actuales de la app con los del respaldo. ¿Continuar?')) return;
+      localStorage.setItem(STORE_KEY, JSON.stringify(d));
+      location.reload();
+    } catch (e) {
+      setBkMsg('bad', 'El respaldo no es válido. Revisa que el texto esté completo.');
+    }
+  }
+
+  /* Exportar archivo: intenta el menú de compartir; si no se puede, descarga directa */
   $('bk-export').addEventListener('click', function () {
     var name = 'presupuesto-respaldo-' + todayStr() + '.json';
-    var json = JSON.stringify({ app: 'presupuesto-soltero', version: 1, data: state }, null, 2);
-    var file = new File([json], name, { type: 'application/json' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: 'Respaldo de presupuesto' }).catch(function () {});
-      return;
+    var json = backupJson();
+
+    function download() {
+      try {
+        var url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        setBkMsg('ok', 'Si no se descargó nada, usa el botón "Copiar como texto".');
+      } catch (e) {
+        setBkMsg('bad', 'No se pudo crear el archivo. Usa el botón "Copiar como texto".');
+      }
     }
-    var url = URL.createObjectURL(file);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    setBkMsg('ok', 'Respaldo descargado: ' + name);
+
+    function shareFile() {
+      if (!(navigator.share && navigator.canShare)) return false;
+      var types = ['application/json', 'text/plain'];
+      for (var i = 0; i < types.length; i++) {
+        var f = new File([json], name, { type: types[i] });
+        if (navigator.canShare({ files: [f] })) {
+          navigator.share({ files: [f], title: 'Respaldo de presupuesto' })
+            .then(function () { setBkMsg('ok', 'Listo. Si no lo guardaste, usa "Copiar como texto".'); })
+            .catch(function (err) {
+              if (err && err.name === 'AbortError') return;
+              download();
+            });
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (!shareFile()) download();
   });
+
+  /* Copiar como texto: funciona en cualquier teléfono, sin archivos */
+  $('bk-copy').addEventListener('click', function () {
+    var json = backupJson();
+    function showBox() {
+      var t = $('bk-text');
+      $('bk-box').hidden = false;
+      $('bk-restore').hidden = true;
+      t.value = json;
+      t.focus();
+      t.select();
+      t.setSelectionRange(0, json.length);
+      setBkMsg('ok', 'Mantén presionado el texto, elige Copiar y pégalo en tus notas.');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(json).then(function () {
+        $('bk-box').hidden = true;
+        setBkMsg('ok', 'Respaldo copiado. Pégalo en tus notas o mándatelo por mensaje.');
+      }).catch(showBox);
+    } else {
+      showBox();
+    }
+  });
+
+  /* Importar */
   $('bk-import').addEventListener('click', function () { $('bk-file').click(); });
   $('bk-file').addEventListener('change', function () {
     var f = $('bk-file').files[0];
     if (!f) return;
     var reader = new FileReader();
-    reader.onload = function () {
-      try {
-        var d = JSON.parse(reader.result).data;
-        if (!d || typeof d.sueldo !== 'number' || !Array.isArray(d.log)) throw new Error('formato');
-        if (!confirm('Esto reemplaza los datos actuales de la app con los del respaldo. ¿Continuar?')) return;
-        localStorage.setItem(STORE_KEY, JSON.stringify(d));
-        location.reload();
-      } catch (e) {
-        setBkMsg('bad', 'El archivo no parece un respaldo válido.');
-      }
-    };
+    reader.onload = function () { restoreFromText(reader.result); };
     reader.readAsText(f);
     $('bk-file').value = '';
   });
+  $('bk-paste').addEventListener('click', function () {
+    $('bk-box').hidden = false;
+    $('bk-restore').hidden = false;
+    $('bk-text').value = '';
+    $('bk-text').focus();
+    setBkMsg('ok', 'Pega tu respaldo en el cuadro y toca "Restaurar desde el texto".');
+  });
+  $('bk-restore').addEventListener('click', function () { restoreFromText($('bk-text').value); });
 
   load();
   state.month = periodKeyOf(todayStr());
