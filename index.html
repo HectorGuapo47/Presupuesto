@@ -810,6 +810,9 @@
 
     function shareFile() {
       if (!(navigator.share && navigator.canShare)) return false;
+      var ua = navigator.userAgent;
+      var isMobile = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+      if (!isMobile) return false; // en computadora se descarga directo
       var types = ['application/json', 'text/plain'];
       for (var i = 0; i < types.length; i++) {
         var f = new File([json], name, { type: types[i] });
